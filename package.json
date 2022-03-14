@@ -1,0 +1,19 @@
+{
+	"name": "laravel-mix-file-hash",
+	"label": "laravel-mix-file-hash",
+	"author": "Frank Fava",
+	"version": "1.0.0",
+	"license": "Apache-2.0",
+	"engines": {
+		"node": ">=10"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"peerDependencies": {
+		"laravel-mix": ">=6.0.0"
+	},
+	"devDependencies": {
+		"laravel-mix": "^6.0.39"
+	}
+}
