@@ -1,4 +1,3 @@
-let glob = require('glob');
 let path = require('path');
 const fs = require("fs");
 let { randomBytes } = require('crypto');
@@ -14,6 +13,7 @@ class MixFileHash {
 		hashLength: 16,
 		jsFolder : '',
 		cssFolder : '',
+		cleanDist : true,
 		applyOnMainFiles : false,
 		resetManifestPathOnFiles : []
 	}
@@ -57,6 +57,15 @@ class MixFileHash {
 			if (p.constructor.name == 'MiniCssExtractPlugin') { p.options = this.applyCssOutputRules(p.options) }
 			return p
 		})
+		// Clean old chunks
+		if (this.options.cleanDist) {
+			config.output.clean = { 
+				keep(asset) {
+					return !asset.includes(`${this.options.jsFolder}/`) &&
+						!asset.includes(`${this.options.cssFolder}/`);
+				},
+			}
+		}
 	}
 
 	/**
@@ -117,30 +126,10 @@ class MixFileHash {
 			if (resetManifestPath) { pathFromPublic = nameWithoutHash }
 			// Add to new manifest
 			newManifest[pathFromPublic] = loadPath
-
-			// remove
-			this.removeStaleFiles({dir, name, hash, ext })
 		})
 
 		this.context.manifest.manifest = newManifest
 		this.context.manifest.refresh()
-	}
-
-	/**
-	 * removeStaleFiles
-	 */
-	removeStaleFiles({ dir, name, hash, ext }) {
-		let finalFileWithoutVersion = [dir, name, hash, ext].join('')
-		glob.sync(`${path.join(this.options.publicPath, dir)}${name}*${ext}`)
-			.filter(file => !file.toString().endsWith(finalFileWithoutVersion))
-			.forEach(path => { 
-				try {
-					fs.unlinkSync(path)
-				} catch(err) {
-					console.error(err)
-					return false
-				}
-			})
 	}
 
 	get context() {

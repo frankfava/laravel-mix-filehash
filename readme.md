@@ -1,8 +1,10 @@
 # Laravel Mix File Hash Extension <!-- omit in toc -->
 
-![](https://img.shields.io/badge/Version-1.0.2-brightgreen)
+![](https://img.shields.io/badge/Version-1.1.0-brightgreen)
 
 This is a Laravel Mix Extension the will add a hash to your filenames.
+
+Requires Mix `>=6.0.0`
 
 ### WHY?!?!
 
@@ -70,6 +72,7 @@ mix.js('resources/js/app.js', 'app.js')
 	hashLength: 16,
 	jsFolder : '',
 	cssFolder : '',
+	cleanDist : true,
 	applyOnMainFiles : false,
 	resetManifestPathOnFiles : []
 }
@@ -80,6 +83,7 @@ mix.js('resources/js/app.js', 'app.js')
 * **hashLength**: Set the length of the custom hash, set to 0 to disable (`useCustomHash` must be true)
 * **jsFolder**: Folder for your main and chunk js files. *Recommended*: 'js' = 'public/js'
 * **cssFolder**: Folder for your main and chunk css files. *Recommended*: 'css' = 'public/css'
+* **cleanDist**: Will clean the selected css and js folders using Webpacks [output.clean](https://webpack.js.org/configuration/output/#outputclean) 
 * **applyOnMainFiles**: Will add a content hash to the main/ entry point files
 	- `/js/app.js` >> `/js/app.992fe2643cfbda61.js`
 	- You will need to use a method like `mix()` on your backend to get the correct file as it changes
