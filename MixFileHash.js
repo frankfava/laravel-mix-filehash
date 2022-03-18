@@ -50,10 +50,6 @@ class MixFileHash {
 	 * webpackConfig
 	 */
 	webpackConfig(config) {
-		// Remove Table
-		let BuildOutputPlugin = require(this.context.resolve('laravel-mix/src/webpackPlugins/BuildOutputPlugin'));
-		config.plugins = config.plugins.filter(p => !(p instanceof BuildOutputPlugin))
-
 		// Change JS output rules
 		config.output = this.applyJsOutputRules(config.output)
 		// Change CSS Output rules
