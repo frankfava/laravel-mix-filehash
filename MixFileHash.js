@@ -60,7 +60,7 @@ class MixFileHash {
 		// Clean old chunks
 		if (this.options.cleanDist) {
 			config.output.clean = { 
-				keep(asset) {
+				keep : (asset) => {
 					return !asset.includes(`${this.options.jsFolder}/`) &&
 						!asset.includes(`${this.options.cssFolder}/`);
 				},
