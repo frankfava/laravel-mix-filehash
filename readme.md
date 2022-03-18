@@ -1,6 +1,6 @@
 # Laravel Mix File Hash Extension <!-- omit in toc -->
 
-![](https://img.shields.io/badge/Version-1.0.0-brightgreen)
+![](https://img.shields.io/badge/Version-1.0.1-brightgreen)
 
 This is a Laravel Mix Extension the will add a hash to your filenames.
 
@@ -64,7 +64,7 @@ mix.js('resources/js/app.js', 'app.js')
 
 **Defaults**
 
-```json
+```javascript
 {
 	useCustomHash : false,
 	hashLength: 16,
