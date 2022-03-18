@@ -1,6 +1,6 @@
 {
-	"name": "laravel-mix-file-hash",
-	"label": "laravel-mix-file-hash",
+	"name": "laravel-mix-filehash",
+	"label": "laravel-mix-filehash",
 	"author": "Frank Fava",
 	"version": "1.0.0",
 	"license": "Apache-2.0",

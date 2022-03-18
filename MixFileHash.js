@@ -10,67 +10,133 @@ class MixFileHash {
 	options = {}
 
 	defaults = {
-		publicPath: '',
-		manifestPath : '',
-		removeVersionHash: true,
-		hashLength : 16
+		useCustomHash : false,
+		hashLength: 16,
+		jsFolder : '',
+		cssFolder : '',
+		applyOnMainFiles : false,
+		resetManifestPathOnFiles : []
 	}
 
-	webpackConfig(webpackConfig) {
-		let BuildOutputPlugin = require(this.context.resolve('laravel-mix/src/webpackPlugins/BuildOutputPlugin'));
-		webpackConfig.plugins = webpackConfig.plugins.filter(p => !(p instanceof BuildOutputPlugin))
-	}
+	/**
+	 * register
+	 */
+	register(options = {}) {
+		// Initial Options
+		this.options = Object.assign({}, this.defaults, options)
 
-	register(options = []) {
-		let paths = {
-			publicPath: this.getFullPathFromPublic(),
-			manifestPath: path.resolve(this.context.paths.rootPath, this.context.manifest.path())
+		// Config
+		this.context.listen('configReady', config => {
+			this.options = Object.assign(this.options, {
+				rootPath: config.context,
+				publicPath: config.output.path,
+				manifestPath: path.resolve(config.context, this.context.manifest.path())
+			})
+
+			// Remove leading slash
+			this.options.resetManifestPathOnFiles = this.options.resetManifestPathOnFiles
+				.map(file => (file.substring(0, 1) == '/' ? file.substring(1) : file))
+		})
+
+		if (!fs.existsSync('./artisan') && this.options.applyOnMainFiles) { 
+			console.log('This extension was designed for Laravel applications using the mix() method. If you experience errors when not using Laravel, set { applyOnMainFiles : false } to not add a hash to the entry point files.')
 		}
-		this.options = Object.assign({}, this.defaults, options, paths)
 
 		// Fire after
-		this.context.listen('build', () => this.modifyManifestFile())
+		this.context.listen('build', () => this.fixManifestFile() )
 	}
-	
-	modifyManifestFile() {
+
+	/**
+	 * webpackConfig
+	 */
+	webpackConfig(config) {
+		// Remove Table
+		let BuildOutputPlugin = require(this.context.resolve('laravel-mix/src/webpackPlugins/BuildOutputPlugin'));
+		config.plugins = config.plugins.filter(p => !(p instanceof BuildOutputPlugin))
+
+		// Change JS output rules
+		config.output = this.applyJsOutputRules(config.output)
+		// Change CSS Output rules
+		config.plugins.map((p, i) => {
+			if (p.constructor.name == 'MiniCssExtractPlugin') { p.options = this.applyCssOutputRules(p.options) }
+			return p
+		})
+	}
+
+	/**
+	 * applyJsOutputRules
+	 */
+	applyJsOutputRules(webpackOutput) {
+		let relative = this.helpers.getRelativePathFromPublic(this.options.jsFolder)
+		return Object.assign({}, webpackOutput, {
+			filename : path.join(relative,`[name]${(this.options.applyOnMainFiles ? this.getHashToInsert(): '')}.js`),
+			chunkFilename : path.join(relative,`[name]${this.getHashToInsert()}.js`)
+		})
+	}
+
+	/**
+	 * applyCssOutputRules
+	 */
+	applyCssOutputRules(webpackOutput = {}) {
+		let relative = this.helpers.getRelativePathFromPublic(this.options.cssFolder)
+		return Object.assign({}, webpackOutput, {
+			filename : `${relative}/[name]${(this.options.applyOnMainFiles ? this.getHashToInsert(): '')}.css`,
+			chunkFilename : `${relative}/[name]${this.getHashToInsert()}.css`
+		})
+	}
+
+	/**
+	 * getHashToInsert
+	 */
+	getHashToInsert() {
+		// Generate custom hash
+		if (!!this.options.useCustomHash) { 
+			return (!!this.options.hashLength) ? `.${randomBytes(32).toString('hex').substring(0,this.options.hashLength)}` : ''
+		}
+		// Otherwise return webapck substitution (https://webpack.js.org/configuration/output/#template-strings)
+		return '.[contenthash]';
+	}
+
+	/**
+	 * fixManifestFile
+	 */
+	fixManifestFile() {
 		let manifestJson = this.context.manifest.read()
-		
 		let newManifest = {}
-		
+
 		Object.keys(manifestJson).forEach(pathFromPublic => {
-			let regex = new RegExp(/(.*)\.(\w+)(?=\?)?(.*)/, 'g')
-			
-			let match = regex.exec(manifestJson[pathFromPublic])
-			let [full, base, ext, version] = match
-			
-			let newFileName = base
-			newFileName += (!!this.options.hashLength) ? `.${randomBytes(this.options.hashLength).toString('hex')}` : ''
-			newFileName += `.${ext}`
-			newFileName += (!this.options.removeVersionHash && this.context.components.has("version")) ? version : ''
+			let loadPath = manifestJson[pathFromPublic].replace('//','/')
+			pathFromPublic = pathFromPublic.replace('//', '/')
 
-			newManifest[pathFromPublic] = this.updateFileName(pathFromPublic, newFileName) || manifestJson[pathFromPublic]
+			// Test
+			let regex = new RegExp(/(\/\w+\/)?(\w+)(\.\w+)?(\.\w+)(?=\?)?(.*)/, 'g')		
+			let match = regex.exec(loadPath)
+			let [full, dir, name, hash, ext, version] = match
+			
+			// Reset manifest
+			let nameWithoutHash = (dir + name + ext)
+			let resetManifestPath = this.options.resetManifestPathOnFiles.some(filename => nameWithoutHash.endsWith(filename))
+			
+			// reset Manifest Path on this file?
+			if (resetManifestPath) { pathFromPublic = nameWithoutHash }
+			// Add to new manifest
+			newManifest[pathFromPublic] = loadPath
 
-			this.removeStaleFiles(base,newFileName)
+			// remove
+			this.removeStaleFiles({dir, name, hash, ext })
 		})
 
 		this.context.manifest.manifest = newManifest
 		this.context.manifest.refresh()
 	}
 
-	updateFileName(pathFromPublic, newFileName) {
-		try {
-			fs.renameSync(this.getFullPathFromPublic(pathFromPublic), this.getFullPathFromPublic(newFileName));
-			return newFileName;
-		}
-		catch (e) { 
-			console.error(e)
-		}
-		return false
-	}
-
-	removeStaleFiles(base,newFileName) {
-		glob.sync(`${this.getFullPathFromPublic()}/${base}.*`)
-			.filter(file => !file.toString().endsWith(newFileName))
+	/**
+	 * removeStaleFiles
+	 */
+	removeStaleFiles({ dir, name, hash, ext }) {
+		let finalFileWithoutVersion = [dir, name, hash, ext].join('')
+		glob.sync(`${path.join(this.options.publicPath, dir)}${name}*${ext}`)
+			.filter(file => !file.toString().endsWith(finalFileWithoutVersion))
 			.forEach(path => { 
 				try {
 					fs.unlinkSync(path)
@@ -79,16 +145,34 @@ class MixFileHash {
 					return false
 				}
 			})
-		return true
-	}
-
-	getFullPathFromPublic(filepath = '') {
-		let publicPath = path.resolve(this.context.paths.rootPath, this.context.config.publicPath)
-		return path.join(publicPath, filepath)
 	}
 
 	get context() {
 		return global.Mix;
+	}
+
+	helpers = {
+		//
+		getFullPathFromPublic : (filepath = '') => {
+			let publicPath = path.resolve(this.context.paths.rootPath, this.context.config.publicPath)
+			return path.join(publicPath, filepath)
+		},
+
+		//
+		getRelativePathFromPublic : (filepath = '') => {
+			let publicPath = path.resolve(this.context.paths.rootPath, this.context.config.publicPath)
+			let fullPublicPath = path.resolve(publicPath, filepath)
+			return path.relative(publicPath, fullPublicPath)
+		},
+
+		//
+		merge : (target, source) => {
+			for (const key of Object.keys(source)) {
+				if (source[key] instanceof Object) Object.assign(source[key], this.helpers.merge(target[key], source[key]))
+			}
+			Object.assign(target || {}, source)
+			return target
+		}
 	}
 
 }
